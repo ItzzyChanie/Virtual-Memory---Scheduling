@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Virtual Memory Management</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f2f5;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+    }
+
+    .input-section {
+      margin-bottom: 40px;
+    }
+
+    .input-section input {
+      padding: 10px;
+      font-size: 16px;
+      width: 200px;
+    }
+
+    .input-section button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+
+    .container-wrapper {
+      display: flex;
+      justify-content: center;
+      gap: 50px;
+      margin-bottom: 50px;
+    }
+
+    .memory-container {
+      width: 300px;
+      background-color: #ffffff;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      min-height: 300px;
+      box-sizing: border-box;
+    }
+
+    .memory-container h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+
+    .virtual-memory-block {
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #88bbee;
+      background-color: #d0e7ff;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+
+    .highlight {
+      background-color: #ffeb3b !important;
+      border-color: #fbc02d !important;
+    }
+
+    .home-button {
+      padding: 12px 25px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .home-button:hover {
+      background-color: #45a049;
+    }
+
+    #primary-content {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #primary-content.allocated {
+      background-color: #ffeb3b;
+      padding: 10px;
+      border: 1px solid #fbc02d;
+      border-radius: 5px;
+      display: inline-block;
+    }
+
+    /* Modal styles */
+    .modal {
+      display: none; 
+      position: fixed; 
+      z-index: 999; 
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto; 
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-content {
+      background-color: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      text-align: center;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
+    .modal-ok-btn {
+    margin-top: 15px;
+    padding: 8px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    }
+
+    .modal-ok-btn:hover {
+    background-color: #45a049;
+    }
+
+
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover,
+    .close:focus {
+      color: #000;
+    }
+
+    .refresh-icon {
+      font-size: 20px;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+
+    .input-section button span.refresh-icon {
+        border: none;
+        background: none;
+        outline: none;
+    }
+
+    .input-section button[title="Refresh"] {
+        border: none;
+        background: none;
+        padding: 8px;
+    }
+
+    .virtual-memory-block.searching {
+      animation: searching 1s infinite;
+    }
+
+    @keyframes searching {
+      0% {
+        background-color: #d0e7ff;
+      }
+      50% {
+        background-color: #88bbee;
+      }
+      100% {
+        background-color: #d0e7ff;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Virtual Memory Management</h1>
+
+  <div class="input-section">
+    <label for="fileSize">Enter File Size:</label>
+    <input type="number" id="fileSize" placeholder="e.g., 266">
+    <button onclick="allocateMemory()">Allocate</button>
+    <button onclick="refreshPage()" title="Refresh">
+      <span class="refresh-icon">&#x21bb;</span>
+    </button>
+  </div>
+
+  <div class="container-wrapper">
+    <div class="memory-container">
+      <h2>Primary Memory</h2>
+      <div id="primary-content">No file allocated.</div>
+    </div>
+
+    <div class="memory-container">
+      <h2>Virtual Memory</h2>
+      <div id="virtual-memory">
+        <!-- Virtual memory blocks will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <a href="home.html" class="home-button">Home</a>
+
+  <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <p id="modal-message">Modal message goes here.</p>
+        <button class="modal-ok-btn" onclick="closeModal()">Okay</button>
+        </div>
+    </div>
+  
+  
+
+  <script>
+    const virtualBlocks = [223, 300, 640, 1034, 1402];
+    const virtualMemoryDiv = document.getElementById("virtual-memory");
+
+    function renderVirtualBlocks() {
+      virtualMemoryDiv.innerHTML = '';
+      virtualBlocks.forEach(size => {
+        const div = document.createElement("div");
+        div.className = "virtual-memory-block";
+        div.dataset.size = size;
+        div.textContent = `${size}kb`;
+        virtualMemoryDiv.appendChild(div);
+      });
+    }
+
+    async function allocateMemory() {
+      const input = document.getElementById("fileSize").value;
+      const inputSize = parseInt(input);
+      const primaryContent = document.getElementById("primary-content");
+
+      // Reset any previous highlights
+      document.querySelectorAll('.virtual-memory-block').forEach(block => {
+        block.classList.remove('highlight', 'searching');
+        block.textContent = `${block.dataset.size}kb`;
+      });
+
+      primaryContent.classList.remove('allocated'); // Reset primary memory background
+
+      if (isNaN(inputSize) || inputSize <= 0) {
+        showModal("Please enter a valid file size.");
+        return;
+      }
+
+      // Clear the input field
+      document.getElementById("fileSize").value = '';
+
+      // Display in primary memory with yellow background
+      primaryContent.textContent = `Allocated: ${inputSize}kb`;
+      primaryContent.classList.add('allocated');
+
+      // Simulate searching animation
+      const blocks = document.querySelectorAll('.virtual-memory-block');
+      for (const block of blocks) {
+        block.classList.add('searching');
+        await new Promise(resolve => setTimeout(resolve, 200)); // Delay for animation
+        block.classList.remove('searching');
+      }
+
+      // Find best fit block
+      let bestFit = null;
+      for (let size of virtualBlocks) {
+        if (size >= inputSize) {
+          if (!bestFit || size < bestFit) bestFit = size;
+        }
+      }
+
+      if (bestFit) {
+        const targetBlock = [...blocks].find(block => parseInt(block.dataset.size) === bestFit);
+        targetBlock.classList.add('highlight');
+        targetBlock.textContent = `${inputSize}/${bestFit}kb`;
+      } else {
+        showModal("No suitable virtual memory block found.");
+      }
+    }
+
+    function refreshPage() {
+      location.reload();
+    }
+
+    function showModal(message) {
+    document.getElementById("modal-message").textContent = message;
+    document.getElementById("modal").style.display = "block";
+    }
+
+
+    function closeModal() {
+      document.getElementById("modal").style.display = "none";
+    }
+
+    window.onclick = function(event) {
+      const modal = document.getElementById("modal");
+      if (event.target === modal) {
+        closeModal();
+      }
+    }
+
+    // Initialize on page load
+    renderVirtualBlocks();
+  </script>
+
+</body>
+</html>

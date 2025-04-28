@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>First Come First Serve Scheduling</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(to right, #fbc2eb, #a6c1ee);
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .nav {
+      background: #fff;
+      padding: 10px 20px;
+      text-align: left;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .nav a {
+      margin-right: 15px;
+      text-decoration: none;
+      color: #007BFF;
+      font-weight: bold;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      position: relative; /* Added for positioning the refresh icon */
+    }
+    h1 { text-align: center; margin-bottom: 30px; }
+    table { width: 100%; margin-bottom: 20px; }
+    table, th, td {
+      border: 1px solid #ddd;
+      border-collapse: collapse;
+    }
+    th, td { padding: 10px; text-align: center; }
+    .input-field {
+      width: 60px;
+      padding: 5px;
+      text-align: center;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 10px 5px;
+      text-decoration: none;
+      color: #fff;
+      border-radius: 4px;
+      background-color: #007BFF;
+      transition: background 0.3s;
+      cursor: pointer;
+      border: none; /* Removed border */
+    }
+    .btn:hover { opacity: 0.9; }
+    .gantt-bar {
+      display: inline-block;
+      background: #4CAF50;
+      color: #fff;
+      padding: 5px 10px;
+      margin: 2px;
+      border-radius: 4px;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 300px;
+      text-align: center;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    .modal-content button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .modal-content button:hover {
+      background-color: #0056b3;
+    }
+    .refresh-icon {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 20px;
+      color: #007BFF;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    .refresh-icon:hover {
+      transform: rotate(90deg);
+    }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="home.html">Home</a>
+    <a href="scheduling.html">Scheduling</a>
+    <a href="Non-Preemptive.html">Non-Preemptive</a>
+  </div>
+  <div class="container">
+    <span class="refresh-icon" onclick="location.reload()">&#x21bb;</span>
+    <h1>First Come First Serve (FCFS) Scheduling</h1>
+    <form id="processForm">
+      <label for="numProcesses">Enter number of processes:</label>
+      <input type="number" id="numProcesses" min="1" required>
+      <button type="button" class="btn" onclick="generateTable()">Generate Table</button>
+      <br><br>
+      <div id="dynamicTable"></div>
+      <br>
+      <button type="submit" id="submitButton" class="btn" style="display:none;">Compute Scheduling</button>
+    </form>
+
+    <div id="results"></div>
+    <div id="ganttChart" style="margin-top:30px;"></div>
+    <br>
+    <a href="javascript:history.back()" class="btn" style="background-color:#6c757d;">Back</a>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <p>Please Input a number first.</p>
+      <button onclick="closeModal()">OK</button>
+    </div>
+  </div>
+
+  <script>
+    let processes = [];
+
+    // Generate a table for inputting process details.
+    function generateTable() {
+      const numInput = document.getElementById('numProcesses');
+      const num = parseInt(numInput.value);
+      if (!num || num <= 0) {
+        showModal();
+        return;
+      }
+      let html = '<table><tr><th>Process</th><th>Arrival Time</th><th>Burst Time</th></tr>';
+      processes = [];
+      for (let i = 0; i < num; i++) {
+        html += `<tr>
+                    <td>P${i+1}</td>
+                    <td><input class="input-field" type="number" id="arrival${i}" required></td>
+                    <td><input class="input-field" type="number" id="burst${i}" required></td>
+                   </tr>`;
+        processes.push({ id: i, arrival: 0, burst: 0 });
+      }
+      html += '</table>';
+      document.getElementById('dynamicTable').innerHTML = html;
+      document.getElementById('submitButton').style.display = 'inline-block';
+    }
+
+    // Form submission listener to calculate FCFS scheduling.
+    document.getElementById('processForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const num = processes.length;
+      for (let i = 0; i < num; i++) {
+        processes[i].arrival = parseInt(document.getElementById('arrival' + i).value);
+        processes[i].burst = parseInt(document.getElementById('burst' + i).value);
+      }
+      runFCFS(processes);
+    });
+
+    function runFCFS(processList) {
+      // Create a deep copy to avoid modifying the original values.
+      const procs = processList.map(p => ({
+        id: p.id,
+        arrival: p.arrival,
+        burst: p.burst,
+        completion: 0
+      }));
+
+      // Sort processes by arrival time.
+      procs.sort((a, b) => a.arrival - b.arrival);
+
+      let time = 0;
+      let gantt = []; 
+
+      // Process scheduling calculations.
+      procs.forEach((p, index) => {
+        // If the CPU is idle, jump to the arrival time of the process.
+        if (time < p.arrival) {
+          time = p.arrival;
+        }
+        // Record the start time for the Gantt chart.
+        let startTime = time;
+        time += p.burst;
+        p.completion = time;
+        // Push Gantt chart segment.
+        gantt.push({ id: p.id, start: startTime, end: time });
+      });
+
+      // Restore original order for results display (by process ID).
+      procs.sort((a, b) => a.id - b.id);
+
+      // Build results table containing CT, Turnaround Time, and Waiting Time
+      let totalTurnaround = 0;
+      let totalWaiting = 0;
+      let resultHTML = '<h2>Results</h2><table><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround Time</th><th>Waiting Time</th></tr>';
+      procs.forEach((p, index) => {
+        let turnaround = p.completion - p.arrival;
+        let waiting = turnaround - p.burst;
+        totalTurnaround += turnaround;
+        totalWaiting += waiting;
+        resultHTML += `<tr>
+                         <td>P${p.id+1}</td>
+                         <td>${p.arrival}</td>
+                         <td>${p.burst}</td>
+                         <td>${p.completion}</td>
+                         <td>${turnaround}</td>
+                         <td>${waiting}</td>
+                       </tr>`;
+      });
+
+      // Add average row
+      const avgTurnaround = (totalTurnaround / procs.length).toFixed(2);
+      const avgWaiting = (totalWaiting / procs.length).toFixed(2);
+      resultHTML += `<tr style="font-weight: bold;">
+                       <td colspan="4">Average</td>
+                       <td>${avgTurnaround}</td>
+                       <td>${avgWaiting}</td>
+                     </tr>`;
+      resultHTML += '</table>';
+      document.getElementById('results').innerHTML = resultHTML;
+
+      // Build a basic Gantt Chart display.
+      let ganttHTML = '<h2>Gantt Chart</h2><div>';
+      gantt.forEach(segment => {
+        ganttHTML += `<span class="gantt-bar">P${segment.id+1}<br>${segment.start} - ${segment.end}</span>`;
+      });
+      ganttHTML += '</div>';
+      document.getElementById('ganttChart').innerHTML = ganttHTML;
+    }
+
+    function showModal() {
+      document.getElementById('modal').style.display = 'block';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
